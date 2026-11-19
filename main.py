@@ -1,72 +1,84 @@
-"""Global Briefing — Thursday, 19 November 2026, distilled.
+#!/usr/bin/env python3
+"""Global Briefing -- wallet w10 entry, news-image-20261119.
 
-A desk-brief format entry: the day's world news sorted into
-Lead, Money, World, Science & Culture and Politics sections,
-set in a clean corporate style. The briefing page is entry.png
-in this repository; this program checks and issues it.
+Design: a clean desk brief in five sections, covering the world
+news of Thursday 19 November 2026 in a single image.
+
+Behaviour: find entry.png in this repository, confirm it is a PNG
+no larger than 1 MiB, copy it to /output/entry.png, and print the
+briefing summary to stdout.
 """
 
-import json
+import hashlib
 import shutil
+import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 
-MANIFEST = {
-    "edition": "Global Briefing",
-    "date": "Thursday, 19 November 2026",
-    "sections": {
-        "LEAD": [
-            "GTA VI launches worldwide after a 13-year wait",
-            "Trump, Xi and Putin meet at APEC in Shenzhen",
-        ],
-        "MONEY": [
-            "EU proposes a 45bn euro Ukraine loan",
-            "Fed minutes: most officials expect further hikes",
-            "Anthropic eyes a $1.4tn market debut",
-        ],
-        "WORLD": [
-            "US and Iran exchange fire again in the Gulf",
-            "Crimean Bridge attacked again, officials say",
-            "Cyclone Akvan nears India's east coast",
-        ],
-        "SCIENCE & CULTURE": [
-            "Voyager 1 reaches one light-day from Earth",
-            "Van Gogh sells for a record $190.4m",
-            "Ebola in DR Congo passes 11,000 cases",
-        ],
-        "POLITICS": [
-            "Jeffries nominated: first African-American Speaker",
-            "Canada recalibrates its China ties",
-        ],
-    },
-}
+HERE = Path(__file__).resolve().parent
+ENTRY = HERE / "entry.png"
+OUTPUT = Path("/output/entry.png")
+MAGIC = b"\x89PNG\r\n\x1a\n"
+CAP = 1024 * 1024
 
 
-def briefing_page() -> Path:
-    return Path(__file__).resolve().parent / "entry.png"
+@dataclass
+class Section:
+    title: str
+    items: list[str] = field(default_factory=list)
 
 
-def issue(page: Path) -> Path:
-    blob = page.read_bytes()
-    if blob[:8] != b"\x89PNG\r\n\x1a\n":
-        raise SystemExit("briefing page is not a PNG")
-    if len(blob) > 1_048_576:
-        raise SystemExit("briefing page exceeds 1 MiB")
-    out = Path("/output/entry.png")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(page, out)
-    return out
+SECTIONS = [
+    Section("Diplomacy", [
+        "Trump, Xi and Putin meet at APEC in Shenzhen",
+        "EU proposes a EUR 45 billion loan for Ukraine",
+    ]),
+    Section("Conflict", [
+        "US and Iran exchange fire in the Gulf",
+        "Crimean Bridge attacked again",
+    ]),
+    Section("Markets & Tech", [
+        "Fed minutes lean toward another rate hike",
+        "Anthropic heads for a $1.4 trillion market debut",
+        "Van Gogh sells for a record $190.4 million",
+    ]),
+    Section("World", [
+        "Cyclone Akvan nears the Andhra and Odisha coasts",
+        "Ebola cases in DR Congo pass 11,000",
+        "Democrats nominate Hakeem Jeffries for Speaker",
+    ]),
+    Section("Culture & Space", [
+        "GTA VI launches globally after 13 years",
+        "Voyager 1 reaches one light-day from Earth",
+    ]),
+]
+
+
+def inspect_entry(path: Path) -> tuple[int, str]:
+    if not path.is_file():
+        sys.exit(f"briefing halted: {path} is missing")
+    data = path.read_bytes()
+    if not data:
+        sys.exit("briefing halted: entry.png is empty")
+    if len(data) > CAP:
+        sys.exit(f"briefing halted: entry.png is {len(data)} bytes, over {CAP}")
+    if not data.startswith(MAGIC):
+        sys.exit("briefing halted: entry.png lacks the PNG signature")
+    return len(data), hashlib.sha256(data).hexdigest()[:12]
 
 
 def main() -> None:
-    out = issue(briefing_page())
-    print(json.dumps({"edition": MANIFEST["edition"], "date": MANIFEST["date"]}))
-    total = sum(len(v) for v in MANIFEST["sections"].values())
-    print(f"{total} items across {len(MANIFEST['sections'])} sections")
-    for section, items in MANIFEST["sections"].items():
-        print(f"[{section}]")
-        for item in items:
-            print(f"  - {item}")
-    print(f"briefing issued at {out}")
+    size, digest = inspect_entry(ENTRY)
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ENTRY, OUTPUT)
+
+    print("GLOBAL BRIEFING -- Thursday, 19 November 2026")
+    print(f"entry.png: {size} bytes, sha256 {digest}..., copied to {OUTPUT}")
+    for section in SECTIONS:
+        print(f"\n{section.title.upper()}")
+        for item in section.items:
+            print(f" - {item}")
+    print("\nEnd of briefing.")
 
 
 if __name__ == "__main__":
